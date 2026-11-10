@@ -1,0 +1,647 @@
+--1. Создание базы данных
+CREATE DATABASE gpa_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE gpa_db;
+
+-- 2. Создание таблиц
+CREATE TABLE Workshops (
+    Kod_ceha INT NOT NULL,
+    Nomer_ceha VARCHAR(50) NOT NULL,
+    Naimenovanie_gazoprovoda VARCHAR(255) NOT NULL,
+    PRIMARY KEY (Kod_ceha)
+) ENGINE=InnoDB;
+
+CREATE TABLE Gpa_types (
+    Kod_tipa_GPA INT NOT NULL,
+    Nazvanie VARCHAR(255) NOT NULL,
+    Proizvoditel VARCHAR(255) NULL,
+    Moschnost_MVt DECIMAL(8,2) NULL,
+    Inventarnyj_nomer VARCHAR(100) NULL,
+    PRIMARY KEY (Kod_tipa_GPA)
+) ENGINE=InnoDB;
+
+CREATE TABLE Units (
+    Kod_uzla INT NOT NULL,
+    Nazvanie_uzla VARCHAR(255) NOT NULL,
+    Kod_tipa_GPA INT NOT NULL,
+    PRIMARY KEY (Kod_uzla),
+    CONSTRAINT fk_units_gpa_type FOREIGN KEY (Kod_tipa_GPA) REFERENCES Gpa_types(Kod_tipa_GPA)
+        ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+CREATE TABLE Spare_parts (
+    Kod_zapchasti INT NOT NULL,
+    Nazvanie VARCHAR(255) NOT NULL,
+    Zavodskoj_nomer VARCHAR(100) NULL,
+    Kod_uzla INT NOT NULL,
+    Proizvoditel VARCHAR(255) NULL,
+    PRIMARY KEY (Kod_zapchasti),
+    CONSTRAINT fk_spare_parts_units FOREIGN KEY (Kod_uzla) REFERENCES Units(Kod_uzla)
+        ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB;
+CREATE TABLE Gpa (
+    Kod_GPA INT NOT NULL,
+    Zavodskoj_nomer VARCHAR(100) NOT NULL,
+    Kod_tipa_GPA INT NOT NULL,
+    Kod_ceha INT NOT NULL,
+    Data_vvoda DATE NOT NULL,
+    Tekuschij_status_GPA VARCHAR(100) NOT NULL DEFAULT 'В работе',
+    Tip_dvigatelya VARCHAR(255) NULL,
+    Zavodskoj_nomer_dvigatelya VARCHAR(100) NULL,
+    Tip_nagnetatelya VARCHAR(255) NULL,
+    Zavodskoj_nomer_nagnetatelya VARCHAR(100) NULL,
+    Nalichie_modernizirovannyh_uzlov VARCHAR(255) NULL,
+    PRIMARY KEY (Kod_GPA),
+    UNIQUE KEY gpa_zavodskoj_nomer_unique (Zavodskoj_nomer),
+    CONSTRAINT fk_gpa_type FOREIGN KEY (Kod_tipa_GPA) REFERENCES Gpa_types(Kod_tipa_GPA)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_gpa_workshop FOREIGN KEY (Kod_ceha) REFERENCES Workshops(Kod_ceha)
+        ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+CREATE TABLE Repairs (
+    Kod_remonta INT NOT NULL,
+    Kod_GPA INT NOT NULL,
+    Data_nachala_remonta DATE NOT NULL,
+    Data_okonchaniya_remonta DATE NULL,
+    Tip_remonta VARCHAR(100) NOT NULL,
+    Nomer_zakaza_TORO VARCHAR(100) NULL,
+    Vid_remonta VARCHAR(100) NULL,
+    Ispolnitel_remonta VARCHAR(255) NULL,
+    Status_remonta VARCHAR(255) NULL,
+    PRIMARY KEY (Kod_remonta),
+    CONSTRAINT fk_repairs_gpa FOREIGN KEY (Kod_GPA) REFERENCES Gpa(Kod_GPA)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE Gpa_runtime (
+    Kod_GPA INT NOT NULL,
+    Data_narabotki_GPA DATE NOT NULL,
+    Narabotka_za_sutki DECIMAL(8,2) NULL,
+    Narabotka_obschaya DECIMAL(8,2) NULL,
+    Narabotka_v_rezerve DECIMAL(8,2) NULL,
+    Narabotka_v_PPR DECIMAL(8,2) NULL,
+    Narabotka_v_vynuzhdennom_prostoe DECIMAL(8,2) NULL,
+    Narabotka_posle_SR DECIMAL(8,2) NULL,
+    Narabotka_posle_KR DECIMAL(8,2) NULL,
+    Narabotka_posle_TR DECIMAL(8,2) NULL,
+    Narabotka_po_TO DECIMAL(8,2) NULL,
+    Sutochnaya_proizvoditelnost_CBN DECIMAL(8,2) NULL,
+    PRIMARY KEY (Kod_GPA, Data_narabotki_GPA),
+    CONSTRAINT fk_gpa_runtime_gpa FOREIGN KEY (Kod_GPA) REFERENCES Gpa(Kod_GPA)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE Failures (
+    Kod_GPA INT NOT NULL,
+    Data_vremya_otkaza DATETIME NOT NULL,
+    Kod_uzla INT NULL,
+    Prichina_otkaza TEXT NOT NULL,
+    Kategoriya_otkaza VARCHAR(100) NOT NULL,
+    Vremya_prostoya DECIMAL(8,2) NOT NULL,
+    Mery TEXT NOT NULL,
+    Tip_ostanova VARCHAR(100) NOT NULL,
+    Nomer_akta_otkaza VARCHAR(100) NOT NULL,
+    Data_akta_otkaza DATE NOT NULL,
+    PRIMARY KEY (Kod_GPA, Data_vremya_otkaza),
+    CONSTRAINT fk_failures_gpa FOREIGN KEY (Kod_GPA) REFERENCES Gpa(Kod_GPA)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_failures_units FOREIGN KEY (Kod_uzla) REFERENCES Units(Kod_uzla)
+        ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE Installed_parts (
+    Kod_ustanovki INT NOT NULL,
+    Kod_GPA INT NOT NULL,
+    Kod_zapchasti INT NOT NULL,
+    Kod_uzla INT NOT NULL,
+    Data_ustanovki DATE NOT NULL,
+    Narabotka_na_moment_ustanovki DECIMAL(8,2) NOT NULL,
+    Prichina_zameny TEXT NOT NULL,
+    Kod_remonta INT NULL,
+    Status_zapchasti VARCHAR(100) NOT NULL DEFAULT 'Установлена',
+    PRIMARY KEY (Kod_ustanovki),
+    CONSTRAINT fk_installed_parts_gpa FOREIGN KEY (Kod_GPA) REFERENCES Gpa(Kod_GPA)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_installed_parts_spare FOREIGN KEY (Kod_zapchasti) REFERENCES Spare_parts(Kod_zapchasti)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_installed_parts_units FOREIGN KEY (Kod_uzla) REFERENCES Units(Kod_uzla)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_installed_parts_repair FOREIGN KEY (Kod_remonta) REFERENCES Repairs(Kod_remonta)
+        ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE Part_runtime (
+    Kod_zapchasti INT NOT NULL,
+    Data_narabotki_zapchasti DATE NOT NULL,
+    Narabotka_zapchasti_za_sutki DECIMAL(8,2) NULL,
+    Narabotka_obschaya_po_zapchasti DECIMAL(8,2) NULL,
+    Resurs DECIMAL(8,2) NULL,
+    Ostatochnyj_resurs DECIMAL(8,2) NULL,
+    Resurs_po_EPB DECIMAL(8,2) NULL,
+    Ostatochnyj_resurs_posle_EPB DECIMAL(8,2) NULL,
+    PRIMARY KEY (Kod_zapchasti, Data_narabotki_zapchasti),
+    CONSTRAINT fk_part_runtime_spare FOREIGN KEY (Kod_zapchasti) REFERENCES Spare_parts(Kod_zapchasti)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE Problem_issues (
+    Kod_problemy INT NOT NULL,
+    Kod_GPA INT NOT NULL,
+    Kod_uzla INT NOT NULL,
+    Kod_zapchasti INT NULL,
+    Data_vyyavleniya DATE NOT NULL,
+    Opisanie_problemy TEXT NOT NULL,
+    Kritichnost VARCHAR(50) NOT NULL,
+    Status_problemy VARCHAR(50) NOT NULL DEFAULT 'Открыт',
+    Prinyatye_mery TEXT NOT NULL,
+    Data_resheniya DATE NULL,
+    PRIMARY KEY (Kod_problemy),
+    CONSTRAINT fk_problem_issues_gpa FOREIGN KEY (Kod_GPA) REFERENCES Gpa(Kod_GPA)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_problem_issues_units FOREIGN KEY (Kod_uzla) REFERENCES Units(Kod_uzla)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_problem_issues_spare FOREIGN KEY (Kod_zapchasti) REFERENCES Spare_parts(Kod_zapchasti)
+        ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE Safety_expertise (
+    Kod_EPB INT NOT NULL,
+    Kod_GPA INT NOT NULL,
+    Data_provedeniya DATE NULL,
+    Nomer_zaklyucheniya VARCHAR(100) NULL,
+    Organizaciya VARCHAR(255) NULL,
+    Ustanovlennyj_resurs DECIMAL(8,2) NULL,
+    Ostatochnyj_resurs DECIMAL(8,2) NULL,
+    PRIMARY KEY (Kod_EPB),
+    CONSTRAINT fk_safety_expertise_gpa FOREIGN KEY (Kod_GPA) REFERENCES Gpa(Kod_GPA)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE Forced_idle (
+    Kod_prostoya INT NOT NULL,
+    Kod_GPA INT NOT NULL,
+    Prichina VARCHAR(255) NULL,
+    Data_nachala_prostoya DATE NULL,
+    Data_okonchaniya DATE NULL,
+    Vremya_prostoya DECIMAL(8,2) NULL,
+    PRIMARY KEY (Kod_prostoya),
+    CONSTRAINT fk_forced_idle_gpa FOREIGN KEY (Kod_GPA) REFERENCES Gpa(Kod_GPA)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE Parts_movement (
+    Kod_dvizheniya INT NOT NULL,
+    Kod_remonta INT NULL,
+    Kod_zapchasti INT NOT NULL,
+    Planovaya_data_postavki DATE NOT NULL,
+    Fakticheskaya_data_postavki DATE NOT NULL,
+    Data_vhodnogo_kontrolya DATE NOT NULL,
+    Nomer_akta_VK VARCHAR(100) NOT NULL,
+    Nomer_nakladnoj VARCHAR(100) NOT NULL,
+    Data_nakladnoj DATE NOT NULL,
+    Nomer_i_data_pasporta VARCHAR(255) NOT NULL,
+    Mestopolozhenie VARCHAR(255) NOT NULL,
+    Stoimost DECIMAL(10,2) NOT NULL,
+    Spisanie VARCHAR(255) NOT NULL,
+    PRIMARY KEY (Kod_dvizheniya),
+    CONSTRAINT fk_parts_movement_repair FOREIGN KEY (Kod_remonta) REFERENCES Repairs(Kod_remonta)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_parts_movement_spare FOREIGN KEY (Kod_zapchasti) REFERENCES Spare_parts(Kod_zapchasti)
+        ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+CREATE TABLE Starts (
+    Kod_puska INT NOT NULL,
+    Kod_GPA INT NOT NULL,
+    Data_puska DATE NULL,
+    PRIMARY KEY (Kod_puska),
+    CONSTRAINT fk_starts_gpa FOREIGN KEY (Kod_GPA) REFERENCES Gpa(Kod_GPA)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE Shutdowns (
+    Kod_ostanova INT NOT NULL,
+    Kod_GPA INT NOT NULL,
+    Tip_ostanova VARCHAR(100) NULL,
+    Data_ostanova DATE NULL,
+    PRIMARY KEY (Kod_ostanova),
+    CONSTRAINT fk_shutdowns_gpa FOREIGN KEY (Kod_GPA) REFERENCES Gpa(Kod_GPA)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE Oil_consumption (
+    Kod_raskhoda INT NOT NULL,
+    Kod_GPA INT NOT NULL,
+    Data_raskhoda DATE NULL,
+    Sutochnyj_raskhod_kg_ch DECIMAL(8,2) NULL,
+    PRIMARY KEY (Kod_raskhoda),
+    CONSTRAINT fk_oil_consumption_gpa FOREIGN KEY (Kod_GPA) REFERENCES Gpa(Kod_GPA)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE Form_ks2 (
+    Kod_zapisi INT NOT NULL,
+    Kod_GPA INT NOT NULL,
+    Kod_remonta INT NULL,
+    Data_sostavleniya DATE NOT NULL,
+    Zatraty_na_SMR DECIMAL(10,2) NOT NULL,
+    Zatraty_na_MTR DECIMAL(10,2) NOT NULL,
+    Perechen_vovlechennogo_MTR TEXT NOT NULL,
+    Podryadnaya_organizaciya VARCHAR(255) NOT NULL,
+    PRIMARY KEY (Kod_zapisi),
+    CONSTRAINT fk_form_ks2_gpa FOREIGN KEY (Kod_GPA) REFERENCES Gpa(Kod_GPA)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_form_ks2_repair FOREIGN KEY (Kod_remonta) REFERENCES Repairs(Kod_remonta)
+        ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE Diagnostics (
+    Kod_diagnostiki INT NOT NULL,
+    Kod_GPA INT NOT NULL,
+    Vid_diagnostiki VARCHAR(255) NULL,
+    Rezultaty_DO TEXT NULL,
+    Data_provedeniya_DO DATE NULL,
+    Status_diagnostiki VARCHAR(100) NULL,
+    Primechanie TEXT NULL,
+    PRIMARY KEY (Kod_diagnostiki),
+    CONSTRAINT fk_diagnostics_gpa FOREIGN KEY (Kod_GPA) REFERENCES Gpa(Kod_GPA)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE Heat_recovery_units (
+    Kod_utilizatora INT NOT NULL,
+    Kod_GPA INT NOT NULL,
+    Nalichie VARCHAR(100) NULL,
+    Vid_utilizatora VARCHAR(100) NULL,
+    Status_utilizatora VARCHAR(100) NULL,
+    Tip_utilizatora VARCHAR(100) NULL,
+    PRIMARY KEY (Kod_utilizatora),
+    CONSTRAINT fk_heat_recovery_units_gpa FOREIGN KEY (Kod_GPA) REFERENCES Gpa(Kod_GPA)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+--3. Изменение структуры
+ALTER TABLE Gpa ADD COLUMN Primechanie VARCHAR(500) NULL;
+ALTER TABLE Gpa MODIFY COLUMN Primechanie TEXT NULL;
+ALTER TABLE Gpa CHANGE COLUMN Primechanie Dopolnitelnoe_Primechanie TEXT NULL;
+ALTER TABLE Repairs ADD INDEX idx_repairs_tip (Tip_remonta);
+ALTER TABLE Gpa DROP COLUMN Dopolnitelnoe_Primechanie;
+ALTER TABLE Gpa ALTER COLUMN Tekuschij_status_GPA SET DEFAULT 'В работе';
+
+--4. Вставка записей
+-- Справочники
+INSERT IGNORE INTO Workshops (Kod_ceha, Nomer_ceha, Naimenovanie_gazoprovoda) VALUES
+(1, '1', 'Уренгой - Надым'), (2, '2', 'Уренгой - Грязовец'), 
+(3, '3', 'Уренгой - Петровск'), (4, '4', 'Уренгой - Новопсков'), (5, '5', 'СРТО - Торжок');
+
+INSERT IGNORE INTO Gpa_types (Kod_tipa_GPA, Nazvanie, Proizvoditel, Moschnost_MVt, Inventarnyj_nomer) VALUES
+(1, 'ГТК-10-4', 'АО "НЗЛ"', 16.00, '136781'), 
+(2, 'ГПА-Ц1-16С', 'ПАО "Тюменские мотостроители"', 10.00, '702512');
+
+INSERT IGNORE INTO Units (Kod_uzla, Nazvanie_uzla, Kod_tipa_GPA) VALUES
+(1, 'Ротор ОК и ТВД', 1), (2, 'Турбина', 1), (3, 'Камера сгорания ПСТ', 1), 
+(4, 'Нагнетатель', 1), (5, 'Вспомогательное оборудование', 1), (6, 'Обойма НЛ ТВД - ТНД', 1);
+
+INSERT IGNORE INTO Spare_parts (Kod_zapchasti, Nazvanie, Zavodskoj_nomer, Kod_uzla, Proizvoditel) VALUES
+(1, 'ВНА', 'ZP-001', 1, 'АО "УралТурбо"'), (2, 'НЛ 1 ст.', 'ZP-002', 1, 'АО "УралТурбо"'), 
+(3, 'НЛ 2 ст.', 'ZP-003', 1, 'АО "УралТурбо"'), (4, 'РЛ 1 ст.', 'ZP-004', 1, 'АО "УралТурбо"'),
+(5, 'Ротор ОК - ТВД', 'ZP-005', 1, 'Невский завод'), (6, 'Ротор ТНД', 'ZP-006', 6, 'Невский завод'),
+(7, 'НЛ ТВД', 'ZP-007', 5, 'ООО "Газэнергосервис"'), (8, 'Вставка КС', 'ZP-008', 3, 'АО "УралТурбо"'),
+(9, 'Труба жаровая', 'ZP-009', 3, 'ООО "Орта"'), (10, 'Горелка №1', 'ZP-010', 3, 'ООО "Теплофизика"');
+
+-- ГПА и ремонты
+INSERT IGNORE INTO Gpa (Kod_GPA, Zavodskoj_nomer, Kod_tipa_GPA, Kod_ceha, Data_vvoda, Tekuschij_status_GPA, Tip_dvigatelya, Zavodskoj_nomer_dvigatelya, Tip_nagnetatelya, Zavodskoj_nomer_nagnetatelya, Nalichie_modernizirovannyh_uzlov) VALUES
+(1, 'ГПА-106', 1, 2, '1983-07-01', 'Резерв', 'ГТД-10', 'D-106', 'Н-1740', 'N-1740', 'Да'),
+(2, 'ГПА-10530802', 2, 5, '2005-09-01', 'В работе', 'ГТД-16', 'D-105', 'Н-6964', 'N-6964', 'Нет'),
+(3, 'ГПА-204', 1, 1, '1995-03-15', 'В работе', 'ГТД-10', 'D-204', 'Н-1735', 'N-1735', 'Да'),
+(4, 'ГПА-301', 1, 3, '2001-11-20', 'В работе', 'ГТД-10', 'D-301', 'Н-1674', 'N-1674', 'Нет'),
+(5, 'ГПА-405', 2, 4, '2010-06-10', 'На ремонте', 'ГТД-16', 'D-405', 'Н-6455', 'N-6455', 'Да'),
+(6, 'ГПА-512', 1, 1, '2015-04-01', 'В работе', 'ГТД-10', 'D-512', 'Н-6457', 'N-6457', 'Да');
+
+INSERT IGNORE INTO Repairs (Kod_remonta, Kod_GPA, Data_nachala_remonta, Data_okonchaniya_remonta, Tip_remonta, Nomer_zakaza_TORO, Vid_remonta, Ispolnitel_remonta, Status_remonta) VALUES
+(1, 1, '2019-07-21', '2019-10-19', 'Капитальный', 'TORO-211136291', 'Плановый', 'ГСПР', 'Выполненный'),
+(2, 3, '2022-12-02', '2023-01-13', 'Средний', 'TORO-211136292', 'Неплановый', 'ГСПР', 'Выполненный'),
+(3, 5, '2024-01-01', '2024-03-02', 'Средний', 'TORO-211136293', 'Аварийный', 'ГСПР', 'Выполненный'),
+(4, 6, '2025-02-01', NULL, 'Текущий', 'TORO-211136294', 'Плановый', 'ГСПР', 'В процессе');
+
+-- Наработка, отказы, запчасти
+INSERT IGNORE INTO Gpa_runtime (Kod_GPA, Data_narabotki_GPA, Narabotka_za_sutki, Narabotka_obschaya, Narabotka_v_rezerve, Narabotka_v_PPR, Narabotka_v_vynuzhdennom_prostoe, Narabotka_posle_SR, Narabotka_posle_KR, Narabotka_posle_TR, Narabotka_po_TO, Sutochnaya_proizvoditelnost_CBN) VALUES
+(1, '2026-10-10', 0, 201106.00, 56105.00, 12123.00, 2386.00, 5128.00, 17205.00, 3125.00, 1287.00, 15.50),
+(2, '2026-10-10', 24, 56032.00, 21125.00, 10126.00, 728.00, 12031.00, 29031.00, 6385.00, 2785.00, 22.40),
+(3, '2026-10-10', 24, 88000.00, 12000.00, 5000.00, 1500.00, 8000.00, 15000.00, 4000.00, 2000.00, 18.20),
+(5, '2026-10-10', 12, 45000.00, 5000.00, 2000.00, 500.00, 3000.00, 10000.00, 1500.00, 800.00, 10.00);
+
+INSERT IGNORE INTO Installed_parts (Kod_ustanovki, Kod_GPA, Kod_zapchasti, Kod_uzla, Data_ustanovki, Narabotka_na_moment_ustanovki, Prichina_zameny, Kod_remonta, Status_zapchasti) VALUES
+(1, 1, 4, 1, '2019-10-19', 0, 'выработан ресурс', 1, 'Установлена'), 
+(2, 1, 5, 1, '2019-10-19', 0, 'выработан ресурс', 1, 'Установлена'),
+(3, 2, 7, 5, '2019-10-19', 5000, 'плановый ремонт', NULL, 'Установлена'), 
+(4, 3, 8, 3, '2023-01-13', 1000, 'аварийная замена', 2, 'Установлена'),
+(5, 3, 9, 3, '2023-01-13', 0, 'выработан ресурс', 2, 'Установлена'),
+(6, 4, 10, 3, '2019-10-19', 0, 'выработан ресурс', NULL, 'Установлена'),
+(7, 5, 1, 1, '2024-03-02', 0, 'аварийная замена', 3, 'Установлена');
+
+INSERT IGNORE INTO Failures (Kod_GPA, Data_vremya_otkaza, Kod_uzla, Prichina_otkaza, Kategoriya_otkaza, Vremya_prostoya, Mery, Tip_ostanova, Nomer_akta_otkaza, Data_akta_otkaza) VALUES
+(3, '2025-07-21 14:26:00', 4, 'Разрушение вкладыша опоры', 'R3', 106, 'Ремонт', 'АО', 'АКТ-01', '2025-07-21'),
+(5, '2023-10-14 00:00:00', 5, 'Разрушение разъема датчика', 'R2.1', 96, 'Замена датчика', 'АО', 'АКТ-02', '2023-10-15');
+
+-- Остальные таблицы
+INSERT IGNORE INTO Problem_issues (Kod_problemy, Kod_GPA, Kod_uzla, Kod_zapchasti, Data_vyyavleniya, Opisanie_problemy, Kritichnost, Status_problemy, Prinyatye_mery, Data_resheniya) VALUES
+(1, 1, 3, 10, '2026-03-12', 'Загрязнение дросселя', 'Критично', 'В процессе', 'Ревизия дросселя', NULL),
+(2, 3, 1, 8, '2022-05-06', 'Забоина входной кромки лопатки', 'Не критично', 'В процессе', 'Ремонт при КР', '2029-05-23');
+
+INSERT IGNORE INTO Safety_expertise (Kod_EPB, Kod_GPA, Data_provedeniya, Nomer_zaklyucheniya, Organizaciya, Ustanovlennyj_resurs, Ostatochnyj_resurs) VALUES
+(1, 1, '2021-11-23', '57-ТУ 127931-2021', 'ООО "Монолит-Спб"', 210123, 9017), 
+(2, 2, '2023-03-06', '57-ТУ 196231-2023', 'ООО "Монолит-Спб"', 157383, 101351);
+
+INSERT IGNORE INTO Forced_idle (Kod_prostoya, Kod_GPA, Prichina, Data_nachala_prostoya, Data_okonchaniya, Vremya_prostoya) VALUES
+(1, 1, 'Отсутствие ремонтного персонала', '2024-08-10', '2024-08-25', 384.00), 
+(2, 2, 'Отсутствие запчастей', '2025-02-15', '2025-02-21', 168.00);
+
+INSERT IGNORE INTO Parts_movement (Kod_dvizheniya, Kod_remonta, Kod_zapchasti, Planovaya_data_postavki, Fakticheskaya_data_postavki, Data_vhodnogo_kontrolya, Nomer_akta_VK, Nomer_nakladnoj, Data_nakladnoj, Nomer_i_data_pasporta, Mestopolozhenie, Stoimost, Spisanie) VALUES
+(1, 1, 5, '2019-08-03', '2019-09-09', '2019-09-11', 'ВК-126', 'НК-5262835', '2019-09-11', 'ПС-2411', 'склад ЛПУМГ', 2386123.06, 'Нет'),
+(2, 2, 8, '2022-11-03', '2022-11-09', '2022-11-11', 'ВК-127', 'НК-3842111', '2022-11-11', 'ПС-11', 'склад ЛПУМГ', 1536751.82, 'Нет');
+
+INSERT IGNORE INTO Starts (Kod_puska, Kod_GPA, Data_puska) VALUES
+(1, 1, '2024-05-02'), (2, 2, '2022-11-28'), (3, 3, '2025-06-18');
+
+INSERT IGNORE INTO Shutdowns (Kod_ostanova, Kod_GPA, Tip_ostanova, Data_ostanova) VALUES
+(1, 3, 'Плановый', '2025-07-14'), (2, 4, 'Аварийный', '2024-06-25');
+
+INSERT IGNORE INTO Oil_consumption (Kod_raskhoda, Kod_GPA, Data_raskhoda, Sutochnyj_raskhod_kg_ch) VALUES
+(1, 1, '2026-10-09', 0.40), (2, 1, '2026-10-10', 0.39), (3, 2, '2026-10-10', 0.55);
+INSERT IGNORE INTO Form_ks2 (Kod_zapisi, Kod_GPA, Kod_remonta, Data_sostavleniya, Zatraty_na_SMR, Zatraty_na_MTR, Perechen_vovlechennogo_MTR, Podryadnaya_organizaciya) VALUES
+(1, 1, 1, '2019-08-01', 525283.00, 2158000.00, 'Ротор ОК-ТВД', 'ГСПР'), 
+(2, 3, 2, '2023-02-01', 628035.00, 1568325.00, 'Вставка КС', 'ГСПР');
+
+INSERT IGNORE INTO Diagnostics (Kod_diagnostiki, Kod_GPA, Vid_diagnostiki, Rezultaty_DO, Data_provedeniya_DO, Status_diagnostiki, Primechanie) VALUES
+(1, 1, 'Виброобследование', 'В норме', '2026-05-11', 'По графику', NULL),
+(2, 3, 'КТС', '0.875', '2026-05-11', 'Внеплановая', 'Отклонений нет');
+
+INSERT IGNORE INTO Heat_recovery_units (Kod_utilizatora, Kod_GPA, Nalichie, Vid_utilizatora, Status_utilizatora, Tip_utilizatora) VALUES
+(1, 1, 'Да', 'Теплоутилизатор', 'В работе', 'Основной');
+
+--5. Обновление, удаление и добавление пользователей
+UPDATE Gpa SET Tekuschij_status_GPA = 'В работе' WHERE Kod_GPA = 5;
+UPDATE Repairs SET Data_okonchaniya_remonta = '2024-03-10', Status_remonta = 'Завершён' WHERE Kod_remonta = 3;
+DELETE FROM Diagnostics WHERE Kod_diagnostiki = 2;
+
+CREATE USER IF NOT EXISTS 'gpa_admin'@'localhost' IDENTIFIED BY 'StrongPassword123!';
+GRANT ALL PRIVILEGES ON gpa_db.* TO 'gpa_admin'@'localhost';
+FLUSH PRIVILEGES;
+
+-- Выгрузка метаданных
+DESCRIBE Workshops; DESCRIBE Gpa_types; DESCRIBE Units; DESCRIBE Spare_parts; DESCRIBE Gpa; 
+DESCRIBE Repairs; DESCRIBE Gpa_runtime; DESCRIBE Installed_parts; DESCRIBE Failures; 
+DESCRIBE Problem_issues; DESCRIBE Safety_expertise; DESCRIBE Forced_idle; DESCRIBE Parts_movement; 
+DESCRIBE Starts; DESCRIBE Shutdowns; DESCRIBE Oil_consumption; DESCRIBE Form_ks2; 
+DESCRIBE Diagnostics; DESCRIBE Heat_recovery_units;
+
+-- Часть 2
+-- 1. Неявное соединение
+-- Вывод списка ГПА, которые находятся в статусе «В работе» или «Резерв», с указанием их типа, мощности и названия цеха. Отсортировать по мощности (по убыванию).
+SELECT 
+    g.Kod_GPA, 
+    g.Zavodskoj_nomer, 
+    t.Nazvanie AS Tip_GPA, 
+    t.Moschnost_MVt, 
+    w.Nomer_ceha,
+    g.Tekuschij_status_GPA
+FROM 
+    Gpa g, Gpa_types t, Workshops w
+WHERE 
+    g.Kod_tipa_GPA = t.Kod_tipa_GPA 
+    AND g.Kod_ceha = w.Kod_ceha
+    AND g.Tekuschij_status_GPA IN ('В работе', 'Резерв')
+ORDER BY 
+    t.Moschnost_MVt DESC;
+
+
+-- Вывод диагностик, которые проводились "внепланово" или "после ремонта"
+SELECT 
+    d.Kod_diagnostiki,
+    g.Zavodskoj_nomer AS GPA,
+    d.Vid_diagnostiki,
+    d.Status_diagnostiki,
+    d.Data_provedeniya_DO
+FROM 
+    Diagnostics d, Gpa g
+WHERE 
+    d.Kod_GPA = g.Kod_GPA
+    AND d.Status_diagnostiki IN ('внеплановая', 'после ремонта')
+ORDER BY 
+    d.Data_provedeniya_DO DESC;
+
+-- 2. Явное соединение 
+--Вывод истории ремонтов с указанием заводского номера ГПА и номера цеха, где он находится. 
+SELECT 
+    r.Kod_remonta,
+    r.Tip_remonta,
+    r.Data_nachala_remonta,
+    r.Data_okonchaniya_remonta,
+    g.Zavodskoj_nomer AS GPA_Nomer,
+    w.Nomer_ceha
+FROM 
+    Repairs r
+INNER JOIN Gpa g ON r.Kod_GPA = g.Kod_GPA
+INNER JOIN Workshops w ON g.Kod_ceha = w.Kod_ceha
+ORDER BY 
+    r.Data_nachala_remonta DESC;
+
+-- Вывод всех проблемных вопросов с указанием узлов, к которым они относятся
+SELECT 
+    p.Kod_problemy,
+    g.Zavodskoj_nomer AS GPA,
+    u.Nazvanie_uzla,
+    p.Opisanie_problemy,
+    p.Kritichnost
+FROM 
+    Problem_issues p
+INNER JOIN Gpa g ON p.Kod_GPA = g.Kod_GPA
+INNER JOIN Units u ON p.Kod_uzla = u.Kod_uzla;
+
+-- 3. Агрегирующие операции
+-- Вывод общей статистики по наработке ГПА: сумму общей наработки, среднюю суточную наработку, а также максимальную и минимальную наработку в резерве.
+SELECT 
+    COUNT(*) AS Kolichestvo_zapisej,
+    SUM(Narabotka_obschaya) AS Summarnaya_obschaya_narabotka,
+    ROUND(AVG(Narabotka_za_sutki), 2) AS Srednyaya_narabotka_za_sutki,
+    MAX(Narabotka_v_rezerve) AS Max_narabotka_v_rezerve,
+    MIN(Narabotka_v_rezerve) AS Min_narabotka_v_rezerve
+FROM 
+    Gpa_runtime;
+-- Вывод общей стоимости всех закупленных запчастей и средней цены одной запчасти
+SELECT 
+    COUNT(*) AS Kolichestvo_postavok,
+    SUM(Stoimost) AS Obshaya_stoimost,
+    ROUND(AVG(Stoimost), 2) AS Srednyaya_stoimost,
+    MAX(Stoimost) AS Samaya_dorogaya,
+    MIN(Stoimost) AS Samaya_deshevaya
+FROM 
+    Parts_movement;
+
+-- Вывод максимального и минимального времени простоя ГПА
+SELECT 
+    MAX(Vremya_prostoya) AS Max_prostoy,
+    MIN(Vremya_prostoya) AS Min_prostoy,
+    ROUND(AVG(Vremya_prostoya), 2) AS Sredniy_prostoy
+FROM 
+    Failures;
+
+-- 4. Группировка и фильтрация 
+-- Вывод кодов ГПА и количество установленных на них запчастей. Оставить только те ГПА, на которых установлено 2 и более запчастей
+SELECT 
+    ip.Kod_GPA,
+    g.Zavodskoj_nomer,
+    COUNT(ip.Kod_ustanovki) AS Kolichestvo_ustanovlennyh_zapchastej
+FROM 
+    Installed_parts ip
+INNER JOIN Gpa g ON ip.Kod_GPA = g.Kod_GPA
+GROUP BY 
+    ip.Kod_GPA, g.Zavodskoj_nomer
+HAVING 
+    COUNT(ip.Kod_ustanovki) > 1
+ORDER BY 
+    Kolichestvo_ustanovlennyh_zapchastej DESC;
+
+ -- Считает, сколько денег потратили на СМР и МТР по каждому ГПА.
+SELECT 
+    f.Kod_GPA,
+    g.Zavodskoj_nomer,
+    SUM(f.Zatraty_na_SMR) AS Itogo_SMR,
+    SUM(f.Zatraty_na_MTR) AS Itogo_MTR,
+    SUM(f.Zatraty_na_SMR + f.Zatraty_na_MTR) AS Obshie_zatraty
+FROM 
+    Form_ks2 f
+JOIN Gpa g ON f.Kod_GPA = g.Kod_GPA
+GROUP BY 
+    f.Kod_GPA, g.Zavodskoj_nomer
+ORDER BY 
+    Obshie_zatraty DESC;
+
+-- 5. Вложенные подзапросы
+-- Найти все детали (запчасти), которые когда-либо устанавливались на ГПА, находящиеся в цехе с номером '1'
+SELECT Kod_zapchasti, Nazvanie, Proizvoditel
+FROM Spare_parts
+WHERE Kod_uzla IN (
+    SELECT Kod_uzla 
+    FROM Units 
+    WHERE Kod_tipa_GPA IN (
+        SELECT Kod_tipa_GPA 
+        FROM Gpa 
+        WHERE Kod_ceha = 1 -- Код цеха №1
+    )
+);
+
+-- Вывести информацию о самой мощной установке
+SELECT Kod_GPA, Zavodskoj_nomer, Kod_tipa_GPA
+FROM Gpa
+WHERE Kod_tipa_GPA = ALL (
+    SELECT Kod_tipa_GPA 
+    FROM Gpa_types 
+    WHERE Moschnost_MVt >= 16.0
+);
+
+-- 6. Функции управления потоком 
+-- Вывести список ГПА и их статус. Если статус «В работе», вывести «Активен», если «Резерв» — «В запасе», а если «На ремонте» — вывести текст с предупреждением
+SELECT 
+    Kod_GPA,
+    Zavodskoj_nomer,
+    Tekuschij_status_GPA,
+    CASE 
+        WHEN Tekuschij_status_GPA = 'В работе' THEN 'Активен'
+        WHEN Tekuschij_status_GPA = 'Резерв' THEN 'В запасе'
+        WHEN Tekuschij_status_GPA = 'На ремонте' THEN 'Требует внимания!'
+        ELSE 'Неизвестный статус'
+    END AS Status_opisanie
+FROM 
+    Gpa;
+
+-- Оценка остаточного ресурса запчасти. Если остаток меньше 5000, вывести «Критический», иначе «Норма»
+SELECT 
+    Kod_zapchasti,
+    Ostatochnyj_resurs,
+    IF(Ostatochnyj_resurs < 5000, 'Критический износ', 'Норма') AS Sostoyanie
+FROM 
+    Part_runtime;
+
+-- 7. Представления
+CREATE OR REPLACE VIEW View_Repairs_Info AS
+SELECT 
+    r.Kod_remonta,
+    r.Tip_remonta,
+    r.Data_nachala_remonta,
+    g.Zavodskoj_nomer AS GPA,
+    w.Nomer_ceha
+FROM 
+    Repairs r
+JOIN Gpa g ON r.Kod_GPA = g.Kod_GPA
+JOIN Workshops w ON g.Kod_ceha = w.Kod_ceha;
+
+-- Проверка:
+SELECT * FROM View_Repairs_Info;
+
+CREATE OR REPLACE VIEW View_Diagnostics_Info AS
+SELECT 
+    d.Kod_diagnostiki,
+    g.Zavodskoj_nomer AS GPA,
+    d.Vid_diagnostiki,
+    d.Rezultaty_DO,
+    d.Status_diagnostiki
+FROM 
+    Diagnostics d
+JOIN Gpa g ON d.Kod_GPA = g.Kod_GPA;
+
+-- Проверка:
+SELECT * FROM View_Diagnostics_Info;
+
+-- 8. Анализ и оптимизация
+-- Анализ запроса и создание индекса для поиска по типу ремонта
+-- Анализ запроса ДО создания индекса
+EXPLAIN SELECT * FROM Repairs WHERE Tip_remonta = 'Капитальный';
+-- Создание индекс 
+CREATE INDEX idx_repairs_tip_advanced ON Repairs(Tip_remonta);
+-- Анализ запроса ПОСЛЕ создания 
+EXPLAIN SELECT * FROM Repairs WHERE Tip_remonta = 'Капитальный';
+
+-- Анализ поиска ГПА по заводскому номеру и создание индекса для него
+-- Анализ ДО
+EXPLAIN SELECT * FROM Gpa WHERE Zavodskoj_nomer = 'ГПА-106';
+-- Создание индекса
+CREATE INDEX idx_gpa_zavodskoj ON Gpa(Zavodskoj_nomer);
+-- Анализ ПОСЛЕ (в столбце possible_keys должен появиться idx_gpa_zavodskoj)
+EXPLAIN SELECT * FROM Gpa WHERE Zavodskoj_nomer = 'ГПА-106';
+
+-- 9. Транзакция 
+-- Установки запчасти и создания записи о ее наработке
+START TRANSACTION;
+
+INSERT INTO Installed_parts (Kod_ustanovki, Kod_GPA, Kod_zapchasti, Kod_uzla, Data_ustanovki, Narabotka_na_moment_ustanovki, Prichina_zameny, Kod_remonta, Status_zapchasti) 
+VALUES (100, 2, 1, 1, '2026-11-03', 1500, 'Плановое ТО', NULL, 'Установлена');
+NSERT INTO Part_runtime (Kod_zapchasti, Data_narabotki_zapchasti, Narabotka_zapchasti_za_sutki, Narabotka_obschaya_po_zapchasti, Resurs, Ostatochnyj_resurs, Resurs_po_EPB, Ostatochnyj_resurs_posle_EPB) 
+VALUES (1, '2026-11-03', 24, 1500, 60000, 58500, 200000, 198500);
+
+COMMIT;
+
+-- Удаление записи о диагнстике, потом отмена этого действия 
+START TRANSACTION;
+
+DELETE FROM Diagnostics WHERE Kod_diagnostiki = 1;
+SELECT * FROM Diagnostics WHERE Kod_diagnostiki = 1;
+ROLLBACK;
+SELECT * FROM Diagnostics WHERE Kod_diagnostiki = 1;
+
+
+-- 10. Динамический SQL
+-- Поиск ГПА по статусу 
+PREPARE stmt FROM 'SELECT Kod_GPA, Zavodskoj_nomer, Tekuschij_status_GPA FROM Gpa WHERE Tekuschij_status_GPA = ?';
+SET @status_gpa = 'В работе';
+EXECUTE stmt USING @status_gpa;
+SET @status_gpa = 'Резерв';
+EXECUTE stmt USING @status_gpa;
+DEALLOCATE PREPARE stmt;
+
+-- Поиск запчастей по производителю
+PREPARE stmt2 FROM 'SELECT Kod_zapchasti, Nazvanie, Proizvoditel FROM Spare_parts WHERE Proizvoditel = ?';
+SET @proizvoditel = 'АО "УралТурбо"';
+EXECUTE stmt2 USING @proizvoditel;
+SET @proizvoditel = 'Невский завод';
+EXECUTE stmt2 USING @proizvoditel;
+DEALLOCATE PREPARE stmt2;
